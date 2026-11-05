@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         QRISHOKI WD Total Calculator
 // @namespace    qrishoki-wd-calc
-// @version      1.9
+// @version      2.0
+// @description  Mini panel WD: mode minus = kirim 5 nominal (paste), mode plus = nama web + total
 // @match        https://linkpembayaran.online/bo/reports/withdraw*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -25,7 +26,7 @@
   const MULTIPLIER = 1200;
 
   const UPDATE_URL = 'https://raw.githubusercontent.com/sangpenguasa/wd-calculator/main/qrishoki-wd-total-calculator.user.js';
-  const CHECK_EVERY_MS = 30 * 60 * 1000;
+  const CHECK_EVERY_MS = 60 * 1000; // cek tiap 1 menit + saat tab difokuskan
   const cmpVer = (a, b) => {
     const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < Math.max(x.length, y.length); i++) {
@@ -34,24 +35,42 @@
     }
     return 0;
   };
-  function checkUpdate() {
-    if (/GANTI_/.test(UPDATE_URL) || typeof GM_xmlhttpRequest !== 'function') return;
+  function setVerStatus(txt, color) {
+    const el = document.getElementById('wdcalc-verstatus');
+    if (el) { el.textContent = txt; el.style.color = color || '#999'; }
+  }
+  const curVersion = () => (typeof GM_info !== 'undefined' && GM_info.script) ? GM_info.script.version : '?';
+  let lastCheck = 0;
+  function checkUpdate(manual) {
+    if (/GANTI_/.test(UPDATE_URL) || typeof GM_xmlhttpRequest !== 'function') {
+      if (manual) setVerStatus('URL update belum diatur', '#f87171');
+      return;
+    }
+    lastCheck = Date.now();
+    if (manual) setVerStatus('Mengecek…', '#999');
     GM_xmlhttpRequest({
       method: 'GET',
       url: UPDATE_URL + '?t=' + Date.now(),
+      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+      timeout: 15000,
       onload: (r) => {
         const m = /@version\s+([\d.]+)/.exec(r.responseText || '');
-        const cur = (typeof GM_info !== 'undefined' && GM_info.script) ? GM_info.script.version : '0';
         const box = document.getElementById('wdcalc-update');
-        if (!m || !box) return;
+        const cur = curVersion();
+        if (!m) { if (manual) setVerStatus('Gagal baca versi (HTTP ' + r.status + ')', '#f87171'); return; }
         if (cmpVer(m[1], cur) > 0) {
-          box.textContent = `⬆ Update v${m[1]} tersedia — klik untuk update`;
-          box.style.display = 'block';
+          if (box) {
+            box.textContent = `⬆ Update v${m[1]} tersedia — klik untuk update`;
+            box.style.display = 'block';
+          }
+          setVerStatus(`Terbaru v${m[1]} (kamu v${cur})`, '#fb923c');
         } else {
-          box.style.display = 'none';
+          if (box) box.style.display = 'none';
+          setVerStatus(`✔ Sudah terbaru (v${cur})`, '#4ade80');
         }
       },
-      onerror: () => {}
+      onerror: () => { if (manual) setVerStatus('Gagal cek — periksa koneksi', '#f87171'); },
+      ontimeout: () => { if (manual) setVerStatus('Timeout — coba lagi', '#f87171'); }
     });
   }
 
@@ -73,6 +92,7 @@
     try {
       const want = label.toLowerCase();
 
+      // 1) Tabel ringkasan (header: Total Amount | Total Row, baris bawahnya nilai)
       for (const t of document.querySelectorAll('table')) {
         if (isDataTable(t)) continue;
         const rows = Array.from(t.rows);
@@ -85,6 +105,7 @@
         }
       }
 
+      // 2) Fallback layout non-table (div/span)
       const candidates = document.querySelectorAll('div, span, th, td');
       for (const cell of candidates) {
         if (panel && panel.contains(cell)) continue;
@@ -172,6 +193,15 @@
       border-radius: 6px; padding: 4px 8px; box-sizing: border-box;
     }
     #wdcalc-header input:focus { border-color: #4ade80; }
+    #wdcalc-verbar {
+      display: flex; align-items: center; gap: 6px; padding: 0 10px 10px; font-size: 10px;
+    }
+    #wdcalc-verstatus { flex: 1; text-align: left; color: #999; }
+    #wdcalc-checkver {
+      background: #2a2a3d; color: #fff; border: 1px solid #3a3a50; border-radius: 6px;
+      padding: 4px 8px; font-size: 11px; cursor: pointer;
+    }
+    #wdcalc-checkver:hover { background: #3a3a50; }
     #wdcalc-update {
       display: none; background: #b45309; color: #fff; font-size: 11px; font-weight: bold;
       text-align: center; padding: 6px 8px; cursor: pointer;
@@ -239,6 +269,10 @@
         <button id="wdcalc-copy">Copy</button>
         <button id="wdcalc-recalc" title="Klik Calculate Total & baca ulang">⟳</button>
         <button id="wdcalc-sign" title="Mode minus = kirim 5 nominal | Mode plus = nama + total">−</button>
+      </div>
+      <div id="wdcalc-verbar">
+        <span id="wdcalc-verstatus"></span>
+        <button id="wdcalc-checkver">Cek Versi</button>
       </div>
     </div>
   `;
@@ -329,6 +363,9 @@
     setTimeout(update, 1500);
   });
 
+  setVerStatus('v' + curVersion(), '#999');
+  panel.querySelector('#wdcalc-checkver').addEventListener('click', () => checkUpdate(true));
+
   panel.querySelector('#wdcalc-update').addEventListener('click', () => {
     window.open(UPDATE_URL + '?t=' + Date.now(), '_blank');
   });
@@ -397,5 +434,8 @@
   setInterval(update, 2000);
   checkUpdate();
   setInterval(checkUpdate, CHECK_EVERY_MS);
+  const recheck = () => { if (!document.hidden && Date.now() - lastCheck > 15000) checkUpdate(); };
+  document.addEventListener('visibilitychange', recheck);
+  window.addEventListener('focus', recheck);
 
 })();
