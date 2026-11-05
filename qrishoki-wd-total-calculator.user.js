@@ -2,7 +2,6 @@
 // @name         QRISHOKI WD Total Calculator
 // @namespace    qrishoki-wd-calc
 // @version      2.0
-// @description  Mini panel WD: mode minus = kirim 5 nominal (paste), mode plus = nama web + total
 // @match        https://linkpembayaran.online/bo/reports/withdraw*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -25,7 +24,6 @@
   const MINUS_KEY = `wdcalc_minus_${HOST_KEY}`;
   const MULTIPLIER = 1200;
 
-  // ===== AUTO UPDATE =====
   const UPDATE_URL = 'https://raw.githubusercontent.com/sangpenguasa/wd-calculator/main/qrishoki-wd-total-calculator.user.js';
   const CHECK_EVERY_MS = 30 * 60 * 1000;
   const cmpVer = (a, b) => {
@@ -75,7 +73,6 @@
     try {
       const want = label.toLowerCase();
 
-      // 1) Tabel ringkasan (header: Total Amount | Total Row, baris bawahnya nilai)
       for (const t of document.querySelectorAll('table')) {
         if (isDataTable(t)) continue;
         const rows = Array.from(t.rows);
@@ -88,7 +85,6 @@
         }
       }
 
-      // 2) Fallback layout non-table (div/span)
       const candidates = document.querySelectorAll('div, span, th, td');
       for (const cell of candidates) {
         if (panel && panel.contains(cell)) continue;
