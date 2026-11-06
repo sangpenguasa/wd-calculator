@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QRISHOKI WD Total Calculator
 // @namespace    qrishoki-wd-calc
-// @version      2.2
+// @version      2.3
 // @match        https://linkpembayaran.online/bo/reports/withdraw*
 // @grant        GM_setValue
 // @grant        GM_getValue
