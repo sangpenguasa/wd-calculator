@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         QRISHOKI WD Total Calculator
 // @namespace    qrishoki-wd-calc
-// @version      2.1
+// @version      2.2
 // @description  Mini panel WD: mode minus = kirim 5 nominal (paste), mode plus = nama web + total
 // @match        https://linkpembayaran.online/bo/reports/withdraw*
 // @grant        GM_setValue
@@ -22,9 +22,10 @@
   const POS_KEY  = `wdcalc_pos_${HOST_KEY}`;
   const ROWPEND_KEY = `wdcalc_rowpending_${HOST_KEY}`;
   const AMTPEND_KEY = `wdcalc_amtpending_${HOST_KEY}`;
-  const MINUS_KEY = `wdcalc_minus_${HOST_KEY}`;
+  const MINUS_KEY = 'wdcalc_minus_mode';
   const MULTIPLIER = 1200;
 
+  // ===== AUTO UPDATE =====
   const UPDATE_URL = 'https://raw.githubusercontent.com/sangpenguasa/wd-calculator/main/qrishoki-wd-total-calculator.user.js';
   const CHECK_EVERY_MS = 60 * 1000; // cek tiap 1 menit + saat tab difokuskan
   const cmpVer = (a, b) => {
@@ -207,6 +208,8 @@
       text-align: center; padding: 6px 8px; cursor: pointer;
     }
     #wdcalc-update:hover { background: #d97706; }
+    #wdcalc-mode { font-size: 10px; color: #999; margin: -6px 0 8px; }
+    #wdcalc-copy.failed { background: #7f1d1d; border-color: #b91c1c; }
     #wdcalc-body { padding: 12px 10px; text-align: center; }
     #wdcalc-total {
       font-size: 20px; font-weight: bold; color: #4ade80; margin-bottom: 10px;
@@ -249,6 +252,7 @@
       <div id="wdcalc-update" title="Klik lalu pilih Install/Update di Tampermonkey"></div>
       <div id="wdcalc-body">
         <div id="wdcalc-total">-</div>
+        <div id="wdcalc-mode"></div>
         <div id="wdcalc-breakdown">
           Total Row: <span id="wd-row">-</span><br>
           Total Amount: <span id="wd-amt">-</span><br>
@@ -297,6 +301,9 @@
   function renderSignBtn() {
     signBtn.textContent = minusMode ? '−' : '+';
     signBtn.classList.toggle('minus', minusMode);
+    panel.querySelector('#wdcalc-mode').textContent = minusMode
+      ? 'MODE − : Copy = nominal minus'
+      : 'MODE + : Copy = nama + total';
   }
   signBtn.addEventListener('click', () => {
     minusMode = !minusMode;
@@ -333,27 +340,36 @@
   amtPendingInput.addEventListener('input', () => { GM_setValue(AMTPEND_KEY, amtPendingInput.value); update(); });
 
   let currentTotal = 0;
+  let dataOk = false;
   let parts = { bal: 0, amt: 0, row: 0, amtPend: 0, rowPend: 0 };
   panel.querySelector('#wdcalc-copy').addEventListener('click', () => {
     const btn = panel.querySelector('#wdcalc-copy');
+    update(); // baca data terbaru sebelum copy
+    const flash = (label, cls) => {
+      btn.textContent = label;
+      btn.classList.remove('copied', 'failed');
+      btn.classList.add(cls);
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied', 'failed'); }, 1500);
+    };
+    if (!dataOk) { flash('Data N/A ⟳', 'failed'); return; }
     const f = MULTIPLIER;
+    const neg = (n) => (n > 0 ? '-' + String(n) : String(n)); // minus, tanpa pemisah ribuan
     const text = minusMode
       ? [
-          fmt(parts.bal),
-          fmt(parts.amt),
-          fmt(parts.row * f),
-          parts.amtPend ? fmt(parts.amtPend) : '',
-          parts.rowPend ? fmt(parts.rowPend * f) : ''
+          neg(parts.bal),
+          neg(parts.amt),
+          neg(parts.row * f),
+          parts.amtPend ? neg(parts.amtPend) : '',
+          parts.rowPend ? neg(parts.rowPend * f) : ''
         ].join('\n')
       : `${nameInput.value}\n${fmt(Math.abs(currentTotal))}`;
-    if (typeof GM_setClipboard === 'function') {
-      GM_setClipboard(text);
-    } else {
-      navigator.clipboard.writeText(text);
+    try {
+      if (typeof GM_setClipboard === 'function') GM_setClipboard(text, 'text');
+      else navigator.clipboard.writeText(text);
+    } catch (e) {
+      try { navigator.clipboard.writeText(text); } catch (e2) { flash('Gagal copy', 'failed'); return; }
     }
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1200);
+    flash(minusMode ? 'Copied (5)' : 'Copied (total)', 'copied');
   });
 
   panel.querySelector('#wdcalc-recalc').addEventListener('click', () => {
@@ -402,6 +418,7 @@
     const rowOk = rowAuto !== null && rowAuto !== undefined;
     const amtOk = amtAuto !== null && amtAuto !== undefined;
     const balOk = bal !== null && bal !== undefined;
+    dataOk = rowOk && amtOk && balOk;
 
     const rowPending = parseNumber(rowPendingInput.value);
     const amtPending = parseNumber(amtPendingInput.value);
