@@ -1,8 +1,7 @@
 // ==UserScript==
 // @name         QRISHOKI WD Total Calculator
 // @namespace    qrishoki-wd-calc
-// @version      2.2
-// @description  Mini panel WD: mode minus = kirim 5 nominal (paste), mode plus = nama web + total
+// @version      2.3
 // @match        https://linkpembayaran.online/bo/reports/withdraw*
 // @grant        GM_setValue
 // @grant        GM_getValue
